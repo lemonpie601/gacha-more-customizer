@@ -1,5 +1,5 @@
-/* Gacha Forge · 픽업 인원 v1.1.0 — Gacha Forge Customizer 추가 패치용 개인 확장 (Gacha Forge 1.8.13 / Marinara Engine 2.5.1).
- * 커스터마이저 설정 화면(설정 → 커스터마이저) 안에 [픽업 인원] 판을 하나 더 넣고, 지금 열린 월드의
+/* Gacha Forge · 픽업 인원 v1.1.1 — Gacha Forge Customizer 추가 패치용 개인 확장 (Gacha Forge 1.8.13 / Marinara Engine 2.5.1).
+ * 커스터마이저 설정 화면(설정 → 커스터마이저) 맨 아래, 커스터마이저의 저장 버튼 줄 밑에 [픽업 인원] 판을 넣고, 지금 열린 월드의
  * 픽업 배너 신규 5성(1~3명)·신규 4성(1~6명) 수를 정합니다. 월드마다 따로 저장됩니다.
  * 커스터마이저 확장·서버 패치와 이 저장소의 서버 추가 패치(server/)가 필요합니다. 커스터마이저가 없으면 아무것도 그리지 않습니다. */
 (() => {
@@ -46,6 +46,7 @@
   // Layout reuses the customizer's own classes (st-plate, gfc-fields, gfc-field, gfc-num, gfc-hint, gfc-foot, gfc-status),
   // whose styles live inside the customizer view this plate is placed in. Only a few extras are added here.
   const CSS = `
+.gff-plate{margin-top:var(--sp-3,16px)}
 .gff-plate .gff-note{font-size:var(--t-tiny,11px);letter-spacing:.04em;line-height:1.5;color:var(--steel-faint,#7e93ae);margin-top:var(--sp-2,10px)}
 .gff-plate .gff-row{margin-top:var(--sp-2,10px)}
 .gff-plate .gfc-num input:disabled{opacity:.5}
@@ -153,9 +154,10 @@
     ensureObserver();
     const view = findCustomizerView();
     if (!view) { wasVisible = false; return; }
-    if (ui.plate.parentNode !== view) {
-      const foot = Array.from(view.children).find((n) => n.classList && n.classList.contains("gfc-foot"));
-      view.insertBefore(ui.plate, foot || null); // last plate, above the customizer's own save row
+    // Below the customizer's own 되돌리기 / 서버에 적용 row, so its buttons clearly belong to the plates above.
+    const foot = Array.from(view.children).find((n) => n !== ui.plate && n.classList && n.classList.contains("gfc-foot"));
+    if (ui.plate.parentNode !== view || (foot && ui.plate.previousElementSibling !== foot)) {
+      if (foot) foot.after(ui.plate); else view.append(ui.plate);
     }
     const visible = view.getClientRects().length > 0 && getComputedStyle(view).display !== "none";
     if (visible && !wasVisible) ui.shown();
