@@ -4,10 +4,12 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else "server/gf-featured-edits.json"
 
 TOP = r'''function gfxFile(){return process.env.GF_FEATURED_CONFIG_FILE||gfDirname(GF_FILE)+"/gacha-featured-counts.json"}
 let GFX_STATE=null;
-function gfxNorm(raw){let runs={};let src=raw&&typeof raw.runs==="object"&&raw.runs?raw.runs:{};for(const [id,v] of Object.entries(src)){if(typeof id!=="string"||!/^[A-Za-z0-9:_-]{1,128}$/.test(id)||!v||typeof v!=="object")continue;let f=Number(v.featuredFive),r=Number(v.featuredFour);if(!Number.isInteger(f)||f<1||f>3||!Number.isInteger(r)||r<1||r>6)continue;runs[id]={featuredFive:f,featuredFour:r}}return{runs}}
+function gfxNorm(raw){let runs={};let src=raw&&typeof raw.runs==="object"&&raw.runs?raw.runs:{};for(const [id,v] of Object.entries(src)){if(typeof id!=="string"||!/^[A-Za-z0-9:_-]{1,128}$/.test(id)||!v||typeof v!=="object")continue;let f=Number(v.featuredFive??1),r=Number(v.featuredFour??1);if(!Number.isInteger(f)||f<1||f>3||!Number.isInteger(r)||r<1||r>6)continue;runs[id]={featuredFive:f,featuredFour:r};if(typeof v.exchange==="boolean")runs[id].exchange=v.exchange}return{runs}}
 function gfxLoad(){if(GFX_STATE)return GFX_STATE;try{GFX_STATE=gfxNorm(JSON.parse(gfReadFile(gfxFile(),"utf8")))}catch(e){if(e&&e.code!=="ENOENT")console.error("[gf-featured] settings load failed; defaults kept",e.message);GFX_STATE={runs:{}}}return GFX_STATE}
-function gfxGet(runId){let v=gfxLoad().runs[runId];return v?{...v}:{featuredFive:1,featuredFour:1}}
-function gfxSet(runId,five,four){if(typeof runId!=="string"||!/^[A-Za-z0-9:_-]{1,128}$/.test(runId))throw Error("invalid runId");if(!Number.isInteger(five)||five<1||five>3)throw Error("invalid featuredFive");if(!Number.isInteger(four)||four<1||four>6)throw Error("invalid featuredFour");let next={runs:{...gfxLoad().runs}};if(five===1&&four===1)delete next.runs[runId];else next.runs[runId]={featuredFive:five,featuredFour:four};let file=gfxFile(),tmp=file+"."+process.pid+".tmp";gfMkdir(gfDirname(file),{recursive:true});gfWriteFile(tmp,JSON.stringify(next,null,2),{mode:0o600});gfRenameFile(tmp,file);GFX_STATE=next;return gfxGet(runId)}
+function gfxExDefault(){return process.env.GF_CUSTOMIZER_ENABLE_EXCHANGE==="1"}
+function gfxExchangeOn(runId){let v=typeof runId==="string"?gfxLoad().runs[runId]:null;return v&&typeof v.exchange==="boolean"?v.exchange:gfxExDefault()}
+function gfxGet(runId){let v=gfxLoad().runs[runId];return{featuredFive:v?v.featuredFive:1,featuredFour:v?v.featuredFour:1,exchange:gfxExchangeOn(runId)}}
+function gfxSet(runId,five,four,exchange){if(typeof runId!=="string"||!/^[A-Za-z0-9:_-]{1,128}$/.test(runId))throw Error("invalid runId");if(!Number.isInteger(five)||five<1||five>3)throw Error("invalid featuredFive");if(!Number.isInteger(four)||four<1||four>6)throw Error("invalid featuredFour");if(exchange!==undefined&&typeof exchange!=="boolean")throw Error("invalid exchange");let prev=gfxLoad().runs[runId],ex=typeof exchange==="boolean"?exchange:prev&&typeof prev.exchange==="boolean"?prev.exchange:undefined;let next={runs:{...gfxLoad().runs}};if(five===1&&four===1&&ex===undefined)delete next.runs[runId];else{next.runs[runId]={featuredFive:five,featuredFour:four};if(ex!==undefined)next.runs[runId].exchange=ex}let file=gfxFile(),tmp=file+"."+process.pid+".tmp";gfMkdir(gfDirname(file),{recursive:true});gfWriteFile(tmp,JSON.stringify(next,null,2),{mode:0o600});gfRenameFile(tmp,file);GFX_STATE=next;return gfxGet(runId)}
 function gfWantOf(x,k,max){let v=x?Number(x[k]):1;return Number.isInteger(v)&&v>=1?Math.min(v,max):1}
 function gfAllFives(x){return[x&&x.fiveId,...(x&&Array.isArray(x.extraFiveIds)?x.extraFiveIds:[])].filter(Boolean)}
 function gfAllFours(x){return[x&&x.fourId,...(x&&Array.isArray(x.extraFourIds)?x.extraFourIds:[])].filter(Boolean)}
@@ -28,7 +30,7 @@ function Ww(s,c,d,v,k,E){'''
 
 HL = r'''async function hl(s,c){let R=await gfHl0(s,c);try{R=await gfKick(s,c,R)}catch(e){r.logger.warn("[gf-featured] extra rate-up check failed: %s",e&&e.message)}return R}async function gfHl0(s,c){'''
 
-ROUTES = r'''s.post("/gf-featured/settings/get",async p=>{const u=p&&p.body||{},o=l(u.runId);if(!o)return{ok:!1,error:"bad-request"};const{data:registry}=await be();const meta=Ae(registry,o);if(!meta)return{ok:!1,error:"bad-request"};return{ok:!0,run:{runId:o,name:String(meta.name||"").slice(0,100)},settings:gfxGet(o),limits:{featuredFive:3,featuredFour:6}}}),s.post("/gf-featured/settings",async p=>{const u=p&&p.body||{},o=l(u.runId);if(!o)return{ok:!1,error:"bad-request"};const{data:registry}=await be();const meta=Ae(registry,o);if(!meta)return{ok:!1,error:"bad-request"};try{return{ok:!0,run:{runId:o,name:String(meta.name||"").slice(0,100)},settings:gfxSet(o,u.featuredFive,u.featuredFour)}}catch(e){return{ok:!1,error:"invalid-settings",message:String(e.message||e)}}}),s.get("/gf-customizer/settings",'''
+ROUTES = r'''s.post("/gf-featured/settings/get",async p=>{const u=p&&p.body||{},o=l(u.runId);if(!o)return{ok:!1,error:"bad-request"};const{data:registry}=await be();const meta=Ae(registry,o);if(!meta)return{ok:!1,error:"bad-request"};return{ok:!0,run:{runId:o,name:String(meta.name||"").slice(0,100)},settings:gfxGet(o),limits:{featuredFive:3,featuredFour:6},exchangeDefault:gfxExDefault()}}),s.post("/gf-featured/settings",async p=>{const u=p&&p.body||{},o=l(u.runId);if(!o)return{ok:!1,error:"bad-request"};const{data:registry}=await be();const meta=Ae(registry,o);if(!meta)return{ok:!1,error:"bad-request"};try{return{ok:!0,run:{runId:o,name:String(meta.name||"").slice(0,100)},settings:gfxSet(o,u.featuredFive,u.featuredFour,u.exchange),exchangeDefault:gfxExDefault()}}catch(e){return{ok:!1,error:"invalid-settings",message:String(e.message||e)}}}),s.get("/gf-customizer/settings",'''
 
 EXTRA = "for(const x of[...gfAllFives(b),...gfAllFours(b)])released.add(x)"
 edits = [
@@ -46,11 +48,14 @@ edits = [
     ("if(b.fourId)released.add(b.fourId)}}if(!released.has(id))", "if(b.fourId)released.add(b.fourId);" + EXTRA + "}}if(!released.has(id))"),
     ("if(b.fourId)released.add(b.fourId)}}const documents", "if(b.fourId)released.add(b.fourId);" + EXTRA + "}}const documents"),
     ('s.get("/gf-customizer/settings",', ROUTES),
+    # Glimmer exchange on/off per world (overrides the customizer's GF_CUSTOMIZER_ENABLE_EXCHANGE, which stays the default)
+    ('if(process.env.GF_CUSTOMIZER_ENABLE_EXCHANGE!=="1")return{ok:!1,error:"exchange-disabled"}', 'if(!gfxExchangeOn(o))return{ok:!1,error:"exchange-disabled"}'),
+    ('readOnly:process.env.GF_CUSTOMIZER_ENABLE_EXCHANGE!=="1",exchangeEnabled:process.env.GF_CUSTOMIZER_ENABLE_EXCHANGE==="1"', 'readOnly:!gfxExchangeOn(runId),exchangeEnabled:gfxExchangeOn(runId)'),
 ]
 for o, nw in edits:
     if re.search(r"\$[$&'`<0-9]", nw):
         raise SystemExit("unsafe $ pattern: " + o)
-recipe = {"name": "gf-featured-addon", "version": "1.0.0", "requires": "gf-customizer (14 edits) loaded before this hook",
+recipe = {"name": "gf-featured-addon", "version": "1.2.0", "requires": "gf-customizer (14 edits) loaded before this hook",
           "edits": [{"old": o, "new": nw} for o, nw in edits]}
 json.dump(recipe, open(OUT, "w", encoding="utf8"), ensure_ascii=False, indent=2)
 

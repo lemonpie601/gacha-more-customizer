@@ -1,6 +1,6 @@
-/* Gacha Forge · 픽업 인원 v1.1.1 — Gacha Forge Customizer 추가 패치용 개인 확장 (Gacha Forge 1.8.13 / Marinara Engine 2.5.1).
+/* Gacha Forge · 픽업 인원 v1.2.0 — Gacha Forge Customizer 추가 패치용 개인 확장 (Gacha Forge 1.8.13 / Marinara Engine 2.5.1).
  * 커스터마이저 설정 화면(설정 → 커스터마이저) 맨 아래, 커스터마이저의 저장 버튼 줄 밑에 [픽업 인원] 판을 넣고, 지금 열린 월드의
- * 픽업 배너 신규 5성(1~3명)·신규 4성(1~6명) 수를 정합니다. 월드마다 따로 저장됩니다.
+ * 픽업 배너 신규 5성(1~3명)·신규 4성(1~6명) 수와 Glimmer 캐릭터 교환 구매 켜기/끄기를 정합니다. 월드마다 따로 저장됩니다.
  * 커스터마이저 확장·서버 패치와 이 저장소의 서버 추가 패치(server/)가 필요합니다. 커스터마이저가 없으면 아무것도 그리지 않습니다. */
 (() => {
   "use strict";
@@ -43,13 +43,13 @@
     return data;
   }
 
-  // Layout reuses the customizer's own classes (st-plate, gfc-fields, gfc-field, gfc-num, gfc-hint, gfc-foot, gfc-status),
+  // Layout reuses the customizer's own classes (st-plate, gfc-fields, gfc-field, gfc-num, gfc-toggle, st-chips, gfc-hint, gfc-foot, gfc-status),
   // whose styles live inside the customizer view this plate is placed in. Only a few extras are added here.
   const CSS = `
 .gff-plate{margin-top:var(--sp-3,16px)}
 .gff-plate .gff-note{font-size:var(--t-tiny,11px);letter-spacing:.04em;line-height:1.5;color:var(--steel-faint,#7e93ae);margin-top:var(--sp-2,10px)}
 .gff-plate .gff-row{margin-top:var(--sp-2,10px)}
-.gff-plate .gfc-num input:disabled{opacity:.5}
+.gff-plate .gfc-num input:disabled,.gff-plate .st-chip:disabled{opacity:.5}
 `;
   const h = (tag, attrs = {}, ...kids) => {
     const n = document.createElement(tag);
@@ -76,6 +76,11 @@
       inputs[id] = input; hints[id] = hint;
       return h("label", { class: "gfc-field" }, h("span", { class: "st-lbl", text: f.label }), hint, h("span", { class: "gfc-num" }, input, h("span", { class: "st-k", text: f.unit })));
     };
+    const exchange = {
+      off: h("button", { class: "st-chip", type: "button", "aria-pressed": "true", text: "끄기" }),
+      on: h("button", { class: "st-chip", type: "button", "aria-pressed": "false", text: "켜기" }),
+    };
+    const exchangeHint = h("div", { class: "gfc-hint" });
     const kicker = h("span", { class: "k", text: "이 월드만" });
     const status = h("div", { class: "gfc-status", role: "status" });
     const revert = h("button", { class: "st-compress -ghost", type: "button", text: "되돌리기" });
@@ -83,11 +88,14 @@
     const plate = h("div", { class: "st-plate gff-plate", "data-gff-plate": "1" },
       h("style", { text: CSS }),
       h("div", { class: "hd" }, h("h3", { text: "픽업 인원" }), kicker),
-      h("div", { class: "gfc-fields" }, field("featuredFive"), field("featuredFour")),
-      h("div", { class: "gff-note", text: "지금 열린 월드에만 적용됩니다. 늘리면 소환 탭을 열 때 지금 배너에도 모자란 인원을 새로 만듭니다 (LLM·이미지 생성 비용, 1~2분). 줄이면 남는 인원은 픽업에서 빠지기만 하고 지워지지 않으며, 다시 늘리면 그대로 돌아옵니다." }),
+      h("div", { class: "gfc-fields" }, field("featuredFive"), field("featuredFour"),
+        h("div", { class: "gfc-toggle" },
+          h("div", {}, h("div", { class: "st-lbl", text: "Glimmer 캐릭터 교환" }), exchangeHint),
+          h("div", { class: "st-chips", role: "group", "aria-label": "Glimmer 캐릭터 교환" }, exchange.off, exchange.on))),
+      h("div", { class: "gff-note", text: "지금 열린 월드에만 적용됩니다. 교환을 켜면 이 월드 상점의 Glimmer 교환에서 실제로 구매됩니다 (켜기 전에 데이터 백업 권장). 인원을 늘리면 소환 탭을 열 때 지금 배너에도 모자란 인원을 새로 만듭니다 (LLM·이미지 생성 비용, 1~2분). 줄이면 남는 인원은 픽업에서 빠지기만 하고 지워지지 않으며, 다시 늘리면 그대로 돌아옵니다." }),
       h("div", { class: "gfc-foot gff-row" }, status, revert, save));
-    let server = null, loadedFor = "", busy = false, token = 0;
-    const current = () => { const o = {}; for (const id of Object.keys(FIELDS)) o[id] = inputs[id].value === "" ? NaN : Number(inputs[id].value); return o; };
+    let server = null, loadedFor = "", busy = false, token = 0, exchangeDefault = false;
+    const current = () => { const o = {}; for (const id of Object.keys(FIELDS)) o[id] = inputs[id].value === "" ? NaN : Number(inputs[id].value); o.exchange = exchange.on.getAttribute("aria-pressed") === "true"; return o; };
     const dirty = () => { const c = current(); return !!server && Object.keys(c).some((k) => c[k] !== server[k]); };
     function refresh() {
       const c = current(); let invalid = false;
@@ -98,16 +106,26 @@
         hints[id].textContent = !server ? "" : bad ? f.min + "~" + f.max + " 사이로 입력해 주세요" : f.hint(v);
         invalid = invalid || bad;
       }
+      for (const b of Object.values(exchange)) b.disabled = !server || busy;
+      exchangeHint.textContent = !server ? "" : (c.exchange ? "상점에서 Glimmer로 캐릭터를 살 수 있습니다" : "상점에 목록과 가격만 보입니다") + " · 서버 기본 " + (exchangeDefault ? "켜짐" : "꺼짐");
       save.disabled = busy || invalid || !dirty() || !loadedFor || loadedFor !== currentRunId();
       revert.disabled = busy || !dirty();
     }
-    function fill(settings, run) {
-      server = { featuredFive: 1, featuredFour: 1, ...settings };
+    function setExchange(v) {
+      exchange.on.setAttribute("aria-pressed", String(v));
+      exchange.off.setAttribute("aria-pressed", String(!v));
+    }
+    function fill(settings, run, exDefault) {
+      if (typeof exDefault === "boolean") exchangeDefault = exDefault;
+      server = { featuredFive: 1, featuredFour: 1, exchange: exchangeDefault, ...settings };
       for (const id of Object.keys(FIELDS)) inputs[id].value = server[id];
+      setExchange(!!server.exchange);
       kicker.textContent = "이 월드만" + (run && run.name ? " · " + run.name : "");
       refresh();
     }
     for (const input of Object.values(inputs)) input.addEventListener("input", () => { setStatus(status, ""); refresh(); });
+    exchange.on.onclick = () => { setExchange(true); setStatus(status, ""); refresh(); };
+    exchange.off.onclick = () => { setExchange(false); setStatus(status, ""); refresh(); };
     revert.onclick = () => { if (server) fill(server, null); setStatus(status, ""); };
     async function load() {
       const rid = currentRunId();
@@ -117,7 +135,7 @@
       try {
         const d = await callApi(API + "/get", { runId: rid });
         if (disposed || mine !== token) return;
-        loadedFor = rid; fill(d.settings, d.run); setStatus(status, "");
+        loadedFor = rid; fill(d.settings, d.run, d.exchangeDefault); setStatus(status, "");
       } catch (e) { if (mine !== token) return; server = null; loadedFor = ""; setStatus(status, e.message, "error"); }
       finally { if (mine === token) { busy = false; refresh(); } }
     }
@@ -127,9 +145,10 @@
       busy = true; refresh(); setStatus(status, "저장하는 중입니다…");
       try {
         const c = current();
-        const d = await callApi(API, { runId: rid, featuredFive: c.featuredFive, featuredFour: c.featuredFour });
-        fill(d.settings, d.run);
-        setStatus(status, "저장했습니다. 소환 탭을 다시 열면 반영됩니다.", "ok");
+        const d = await callApi(API, { runId: rid, featuredFive: c.featuredFive, featuredFour: c.featuredFour, exchange: c.exchange });
+        fill(d.settings, d.run, d.exchangeDefault);
+        if (typeof d.settings.exchange !== "boolean") setStatus(status, "인원은 저장했지만 서버 추가 패치가 예전 버전이라 교환 켜기/끄기는 반영되지 않았습니다. server/ 파일을 업데이트하고 마리나라를 다시 시작해 주세요.", "error");
+        else setStatus(status, "저장했습니다. 소환 탭·Glimmer 교환 화면을 다시 열면 반영됩니다.", "ok");
       } catch (e) { setStatus(status, "저장하지 못했습니다. " + e.message, "error"); }
       finally { busy = false; refresh(); }
     };

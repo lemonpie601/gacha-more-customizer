@@ -10,6 +10,7 @@
 |---|---|---|
 | 픽업 5성 인원 | 1~3명 | 1명 (게임 기본) |
 | 픽업 4성 인원 | 1~6명 | 1명 (게임 기본) |
+| Glimmer 캐릭터 교환 | 끄기 / 켜기 | 서버의 `GF_CUSTOMIZER_ENABLE_EXCHANGE` 값 (보통 끄기) |
 
 - 게임 **설정 → 커스터마이저** 화면 안, 커스터마이저의 [되돌리기]·[서버에 적용] 줄 **밑에** **[픽업 인원]** 판이 하나 더 생깁니다. 저장 버튼은 판 안에 따로 있습니다 (커스터마이저 설정과 따로 저장).
 - 지금 열린 월드에만 저장됩니다. 월드마다 다르게 둘 수 있습니다.
@@ -19,6 +20,7 @@
 - 4성 픽업: 신규 4성과 복각 4성이 같은 확률로 나옵니다. 배너 상세의 확률 표시도 그에 맞게 바뀝니다.
 - 무기 배너: 추가 5성마다 전용 5성 무기, 생성할 때마다 4성 무기 1개가 붙습니다.
 - 배너가 끝나면 추가 인원도 상시 풀로 들어가고, 커스터마이저의 Glimmer 교환 목록에도 포함됩니다.
+- **Glimmer 캐릭터 교환 끄기/켜기**: 커스터마이저는 구매를 환경 변수(`GF_CUSTOMIZER_ENABLE_EXCHANGE`)로만 켤 수 있어서 기본이 "구매 꺼짐 · 목록만 표시"입니다. 이 판에서 월드마다 켜고 끌 수 있습니다. [이 월드에 적용]을 누른 뒤 상점의 Glimmer 교환 화면을 다시 열면 반영되고, 마리나라를 다시 시작할 필요는 없습니다. 한 번도 정하지 않은 월드는 환경 변수 값을 따릅니다. 켜기 전에 데이터 백업을 권장합니다.
 
 ## 구성
 
@@ -78,7 +80,7 @@ services:
 
 ```
 [gf-customizer] applied 14 edits in memory ...
-[gf-featured] applied 14 edits in memory (per-world featured rate-up size)
+[gf-featured] applied 16 edits in memory (per-world featured rate-up size)
 ```
 
 `[gf-featured] not applied: customizer patch not applied`가 보이면 `NODE_OPTIONS` 순서를 확인하세요.
@@ -92,4 +94,5 @@ services:
 ## 끄기
 
 - 추가 생성만 멈추기: 환경 변수 `GF_FEATURED_EXTRA_RATEUP=0`
+- 완전히 끄면 Glimmer 교환 켜기/끄기도 사라지고 커스터마이저의 환경 변수 설정으로 돌아갑니다.
 - 완전히 끄기: `NODE_OPTIONS`에서 `gf-featured-runtime.cjs` 줄을 빼고 재시작. 이미 만든 인원은 남지만 픽업에는 원래 2명만 나옵니다 (지난 배너의 추가 인원은 상시 풀에 남지 않습니다).
